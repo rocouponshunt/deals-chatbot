@@ -96,6 +96,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 
 /* Store picker */
 .store-list{display:flex;flex-direction:column;gap:6px;margin-top:4px;align-self:flex-start;width:100%;max-width:420px}
+.store-search{width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:9px 13px;border-radius:9px;font-family:var(--mono);font-size:13px;outline:none;transition:border .15s;margin-bottom:2px}
+.store-search:focus{border-color:var(--accent)}
+.store-search::placeholder{color:var(--text3)}
+.store-results{display:flex;flex-direction:column;gap:6px}
 .store-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 14px;cursor:pointer;transition:all .15s;display:flex;justify-content:space-between;align-items:center}
 .store-item:hover{border-color:var(--accent);background:var(--bg4)}
 .store-item-name{font-family:var(--font);font-size:13px;font-weight:600}
@@ -201,23 +205,59 @@ function addQuickReplies(options, onPick) {
   scrollBottom();
 }
 
-function addStoreList(stores, onPick) {
+function addStoreList(initialStores, onPick) {
   const wrap = document.createElement('div');
   wrap.className = 'store-list';
-  stores.forEach(s => {
-    const item = document.createElement('div');
-    item.className = 'store-item';
-    item.innerHTML = `<div><div class="store-item-name">${s.report_storename}</div><div class="store-item-cb">${s.cashback}${s.cashback_type === 'percent' ? '%' : '₹'} ${s.store_type}</div></div><div style="color:var(--text3);font-size:11px">${s.report_store_categoryname || ''}</div>`;
-    item.onclick = () => { wrap.remove(); addMsg('user', s.report_storename); onPick(s); };
-    wrap.appendChild(item);
+
+  // Search input
+  const searchInput = document.createElement('input');
+  searchInput.className = 'store-search';
+  searchInput.placeholder = 'Search retailer by name...';
+  wrap.appendChild(searchInput);
+
+  // Results container
+  const resultsEl = document.createElement('div');
+  resultsEl.className = 'store-results';
+  wrap.appendChild(resultsEl);
+
+  function renderStores(list) {
+    resultsEl.innerHTML = '';
+    list.slice(0, 6).forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'store-item';
+      item.innerHTML = `<div><div class="store-item-name">${s.report_storename}</div><div class="store-item-cb">${s.cashback}${s.cashback_type === 'percent' ? '%' : '₹'} ${s.store_type}</div></div><div style="color:var(--text3);font-size:11px">${s.report_store_categoryname || ''}</div>`;
+      item.onclick = () => { wrap.remove(); addMsg('user', s.report_storename); onPick(s); };
+      resultsEl.appendChild(item);
+    });
+    // Not in list option always at bottom
+    const notIn = document.createElement('div');
+    notIn.className = 'store-item';
+    notIn.style.borderStyle = 'dashed';
+    notIn.innerHTML = `<div style="color:var(--text3)">Retailer not in list — add manually</div><div style="color:var(--text3);font-size:18px">+</div>`;
+    notIn.onclick = () => { wrap.remove(); addMsg('user', 'Not in list'); onPick(null); };
+    resultsEl.appendChild(notIn);
+    scrollBottom();
+  }
+
+  renderStores(initialStores);
+
+  // Live search against full STORES list
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { renderStores(initialStores); return; }
+    const filtered = STORES.filter(s =>
+      s.report_storename.toLowerCase().includes(q) ||
+      (s.url_key || '').toLowerCase().includes(q) ||
+      (s.report_store_categoryname || '').toLowerCase().includes(q)
+    );
+    renderStores(filtered);
   });
-  const notIn = document.createElement('div');
-  notIn.className = 'store-item';
-  notIn.style.borderStyle = 'dashed';
-  notIn.innerHTML = `<div style="color:var(--text3)">Retailer not in list — add manually</div><div style="color:var(--text3);font-size:18px">+</div>`;
-  notIn.onclick = () => { wrap.remove(); addMsg('user', 'Not in list'); onPick(null); };
-  wrap.appendChild(notIn);
+
+  // Prevent main input from receiving keystrokes while searching
+  searchInput.addEventListener('keydown', e => e.stopPropagation());
+
   chatEl.insertBefore(wrap, typingEl);
+  setTimeout(() => searchInput.focus(), 100);
   scrollBottom();
 }
 
@@ -298,20 +338,72 @@ function makeWaterfallEl(d, store) {
 // ── Retailer matching ─────────────────────────────────────────────
 function matchStore(apiRetailer, productUrl) {
   const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const tokens = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(t => t.length > 2);
+
+  // Extract domain root: koparoclean.com → koparoclean, flipkart.com → flipkart
+  let domainRaw = '', domainNorm = '';
+  try {
+    domainRaw = new URL(productUrl).hostname.replace(/^www\./, '').replace(/\.(com|in|co\.in|net|org|io)$/, '');
+    domainNorm = norm(domainRaw);
+  } catch (e) {}
+
   const rn = norm(apiRetailer);
-  let domain = '';
-  try { domain = norm(new URL(productUrl).hostname.replace('www.', '')); } catch (e) {}
+
   for (const s of STORES) {
-    const key = norm(s.url_key), name = norm(s.report_storename);
-    if (key === rn || name === rn || (domain && (key === domain || domain.includes(key) || key.includes(domain))))
+    const key = norm(s.url_key);
+    const name = norm(s.report_storename);
+
+    // Exact match on any identifier
+    if (key === rn || name === rn || key === domainNorm || name === domainNorm)
+      return { store: s, confidence: 'high' };
+
+    // Domain contains store key or store key contains domain (e.g. koparoclean ↔ koparo)
+    if (domainNorm && key && (domainNorm.includes(key) || key.includes(domainNorm)))
+      return { store: s, confidence: 'high' };
+    if (domainNorm && name && (domainNorm.includes(name) || name.includes(domainNorm)))
       return { store: s, confidence: 'high' };
   }
+
+  // Token overlap: split "Koparo Clean" → ["koparo","clean"], match against domain tokens
+  const domainTokens = tokens(domainRaw);
   for (const s of STORES) {
-    const key = norm(s.url_key), name = norm(s.report_storename);
-    if (rn && (key.includes(rn) || rn.includes(key) || name.includes(rn) || rn.includes(name)))
+    const nameTokens = tokens(s.report_storename);
+    const keyTokens = tokens(s.url_key);
+    const overlap = (a, b) => a.filter(t => b.some(bt => bt.includes(t) || t.includes(bt))).length;
+    if (domainTokens.length && (overlap(domainTokens, nameTokens) > 0 || overlap(domainTokens, keyTokens) > 0))
+      return { store: s, confidence: 'medium' };
+    // Also try retailer field tokens
+    const rTokens = tokens(apiRetailer);
+    if (rTokens.length && (overlap(rTokens, nameTokens) > 0 || overlap(rTokens, keyTokens) > 0))
       return { store: s, confidence: 'medium' };
   }
   return null;
+}
+
+// Score stores for picker ordering (best guesses at top)
+function scoreStoresForPicker() {
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const tokens = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(t => t.length > 2);
+  let domainRaw = '';
+  try { domainRaw = new URL(DEAL.product_url).hostname.replace(/^www\./, '').replace(/\.(com|in|co\.in|net|org|io)$/, ''); } catch (e) {}
+  const domainNorm = norm(domainRaw);
+  const domainTokens = tokens(domainRaw);
+  const rn = norm(DEAL.api_retailer);
+  const rTokens = tokens(DEAL.api_retailer);
+
+  return [...STORES].map(s => {
+    const key = norm(s.url_key), name = norm(s.report_storename);
+    const nTokens = tokens(s.report_storename), kTokens = tokens(s.url_key);
+    let score = 0;
+    if (key === domainNorm || name === domainNorm) score += 10;
+    if (domainNorm && (domainNorm.includes(key) || key.includes(domainNorm))) score += 6;
+    if (domainNorm && (domainNorm.includes(name) || name.includes(domainNorm))) score += 6;
+    domainTokens.forEach(t => { if (nTokens.some(nt => nt.includes(t) || t.includes(nt))) score += 3; });
+    domainTokens.forEach(t => { if (kTokens.some(kt => kt.includes(t) || t.includes(kt))) score += 3; });
+    rTokens.forEach(t => { if (nTokens.some(nt => nt.includes(t) || t.includes(nt))) score += 2; });
+    if (rn && (key.includes(rn) || rn.includes(key))) score += 2;
+    return { s, score };
+  }).sort((a, b) => b.score - a.score).map(x => x.s);
 }
 
 // ── Edge function calls ───────────────────────────────────────────
@@ -440,21 +532,9 @@ async function step1_fetchProduct(url) {
 
 async function showStorePicker() {
   await botDelay(400);
-  // Score stores by partial match and show top 5
-  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const rn = norm(DEAL.api_retailer);
-  let domain = '';
-  try { domain = norm(new URL(DEAL.product_url).hostname.replace('www.', '')); } catch (e) {}
-  const scored = STORES.map(s => {
-    const key = norm(s.url_key), name = norm(s.report_storename);
-    let score = 0;
-    if (rn && (key.includes(rn) || rn.includes(key))) score += 3;
-    if (rn && (name.includes(rn) || rn.includes(name))) score += 3;
-    if (domain && (key.includes(domain) || domain.includes(key))) score += 2;
-    return { s, score };
-  }).sort((a, b) => b.score - a.score).slice(0, 5).map(x => x.s);
-  addMsg('bot', 'Which retailer is this?');
-  addStoreList(scored, async store => {
+  const scored = scoreStoresForPicker();
+  addMsg('bot', 'Which retailer is this? Search by name:');
+  addStoreList(scored.slice(0, 5), async store => {
     if (store) { DEAL.store = store; await step3_coupon(); }
     else { await botDelay(300); addMsg('bot', 'What\'s the retailer name?'); setStep('manual-retailer-name'); unlockInput(); }
   });
