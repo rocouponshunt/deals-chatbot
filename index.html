@@ -507,7 +507,9 @@ async function step1_fetchProduct(url) {
   DEAL.product_name = product.product_name;
   DEAL.mrp = product.mrp;
   DEAL.discounted_price = product.discounted_price;
-  DEAL.image_urls = (product.image_urls || []).slice(0, 5);
+  let raw = product.image_urls || [];
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch(e) { raw = []; } }
+  DEAL.image_urls = raw.slice(0, 5);
   DEAL.availability = product.availability !== false;
   DEAL.availability_status = product.availability_status || 'In Stock';
   DEAL.api_retailer = product.retailer || '';
