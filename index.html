@@ -367,6 +367,19 @@ async function apiFetchProduct(url){
   if(!res.ok)throw new Error('HTTP '+res.status);return res.json();
 }
 async function apiSaveDeal(){
+  // Determine what cashback_override to save:
+  // - Group A: null (use store default, cascade updates apply)
+  // - Group B1: b1_new_cashback (new user rate as default display)
+  // - Upto (other): the confirmed rate the user entered
+  const groupid = DEAL.store?.groupid || 'A';
+  let cashback_override_to_save = null;
+  if(groupid === 'B1'){
+    cashback_override_to_save = DEAL.b1_new_cashback; // new user rate
+  } else if(groupid !== 'A'){
+    cashback_override_to_save = DEAL.cashback_override; // confirmed upto rate
+  }
+  // For A: null → store default used, cascade applies when store changes
+
   const payload={
     store_id:DEAL.store?.id||null,
     report_storename:DEAL.store?.report_storename||DEAL.manual_retailer_name||'',
@@ -375,11 +388,17 @@ async function apiSaveDeal(){
     coupon_code:DEAL.coupon_code||null,coupon_discount:DEAL.coupon_discount||0,coupon_type:DEAL.coupon_type||'flat',
     prepaid_discount_override:DEAL.prepaid_discount||null,prepaid_type_override:DEAL.prepaid_type||null,
     shipping_fee_override:DEAL.shipping_fee,shipping_rule_override:DEAL.shipping_rule,
-    cashback_amount:DEAL.cashback_amount,final_deal_price:DEAL.final_deal_price,discount_percent:DEAL.discount_percent,
+    cashback_amount:DEAL.cashback_amount,
+    final_deal_price:Math.round(DEAL.final_deal_price),
+    discount_percent:DEAL.discount_percent,
     image_urls:DEAL.image_urls||[],description:'',
     category:DEAL.detected_category||DEAL.store?.report_store_categoryname||'',
     availability:DEAL.availability!==false,availability_status:DEAL.availability_status||'In Stock',
-    cashback_override:DEAL.cashback_override||null,b1_existing_cashback:DEAL.b1_existing_cashback||null,
+    cashback_override: cashback_override_to_save,
+    b1_existing_cashback: DEAL.b1_existing_cashback||null,
+    b1_new_cashback: DEAL.b1_new_cashback||null,
+    is_b1: DEAL.is_b1||false,
+    groupid: groupid,
     status:'draft'
   };
   const res=await fetch(EDGE.SAVE_DEAL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -540,37 +559,58 @@ async function stepCashbackCheck(){
   const store=DEAL.store,groupid=store?.groupid||'A';
   await botDelay(400);
   if(groupid==='B1'){
+    // New user rate = store.cashback (already known)
+    // Always ask for existing user rate — never show "not set", always collect it
+    DEAL.b1_new_cashback=store.cashback;
     const existingRate=store.rates?.find(r=>(r.rate_label||'').toLowerCase().includes('exist'));
-    const existingCb=existingRate?.cashback||null;
-    DEAL.b1_new_cashback=store.cashback;DEAL.b1_existing_cashback=existingCb;
-    addMsg('bot',`<span class="hi">${store.report_storename}</span> has different rates:\n• New user: <span class="hi">${store.cashback}%</span>\n• Existing user: <span class="hi">${existingCb!==null?existingCb+'%':'not set'}</span>\n\nIs the customer new or existing?`);
-    addQuickReplies([{label:`New user (${store.cashback}%)`,accent:true},{label:`Existing user${existingCb!==null?' ('+existingCb+'%)':''}`}],async v=>{
-      if(v.startsWith('New')){DEAL.cashback_override=store.cashback;DEAL.is_b1_existing=false;await stepCat();}
-      else{DEAL.is_b1_existing=true;if(existingCb!==null){DEAL.cashback_override=existingCb;DEAL.b1_existing_cashback=existingCb;await stepCat();}
-      else{addMsg('bot',`Existing user cashback % for ${store.report_storename}?`);setStep('b1-existing-rate');unlockInput();}}
-    });
-    setStep('b1-choice');
+    const existingCbStored=existingRate?.cashback||null;
+
+    addMsg('bot',`<span class="hi">${store.report_storename}</span> is a B1 retailer with two cashback rates.\n\n• New user rate: <span class="hi">${store.cashback}${store.cashback_type==='percent'?'%':'₹'}</span>${existingCbStored!==null?`\n• Existing user rate: <span class="hi">${existingCbStored}%</span> (from retailer rates)`:''}\n\nWhat is the existing user cashback % for this deal?`);
+    setStep('b1-existing-rate');
+    unlockInput();
   }else if(groupid!=='A'){
-    // Upto cashback — but check if prefilled
-    if(DEAL.cashback_override!==undefined){
-      addMsg('bot',`<span class="hi">${store.report_storename}</span> is Upto ${store.cashback}%. Using <span class="hi">${DEAL.cashback_override}%</span> from your message — correct?`);
-      addQuickReplies([{label:'Yes',accent:true},{label:'Change it'}],async v=>{
-        if(v==='Yes')await stepCat();
-        else{addMsg('bot',`What cashback % for this product?`);setStep('upto-confirm');unlockInput();}
+    // Upto cashback — must ALWAYS confirm, even if prefilled
+    const prefilledCb=DEAL.cashback_override;
+    if(prefilledCb!==undefined){
+      addMsg('bot',`<span class="hi">${store.report_storename}</span> offers Upto <span class="hi">${store.cashback}${store.cashback_type==='percent'?'%':'₹'}</span>.\n\nI picked up <span class="hi">${prefilledCb}%</span> from your message. Confirm this is the actual cashback for this specific product?`);
+      addQuickReplies([{label:`Yes, ${prefilledCb}%`,accent:true},{label:'No, enter correct rate'}],async v=>{
+        if(v.startsWith('Yes')){
+          // Already set, proceed
+          await stepCat();
+        }else{
+          addMsg('bot',`What is the actual cashback % for this product on ${store.report_storename}?`);
+          setStep('upto-confirm');unlockInput();
+        }
       });
       setStep('upto-confirm-check');
     }else{
-      addMsg('bot',`<span class="hi">${store.report_storename}</span> offers Upto <span class="hi">${store.cashback}${store.cashback_type==='percent'?'%':'₹'}</span> — what's the actual % for this product?`);
+      addMsg('bot',`<span class="hi">${store.report_storename}</span> offers Upto <span class="hi">${store.cashback}${store.cashback_type==='percent'?'%':'₹'}</span> ${store.store_type}.\n\nWhat is the actual cashback % for <em>this specific product</em>? (Check the CashKaro app or retailer page)`);
       setStep('upto-confirm');unlockInput();
     }
   }else{
-    DEAL.cashback_override=undefined;await stepCat();
+    // Group A = flat rate, no question needed
+    DEAL.cashback_override=null; // null = use store default, not an override
+    await stepCat();
   }
 }
 
-function parseUptoConfirm(text){const m=text.match(/(\d+\.?\d*)/);DEAL.cashback_override=m?parseFloat(m[1]):(DEAL.store?.cashback||0);addMsg('bot',`Cashback set to <span class="hi">${DEAL.cashback_override}%</span>.`);}
-function parseB1Rate(text){const m=text.match(/(\d+\.?\d*)/);DEAL.cashback_override=m?parseFloat(m[1]):(DEAL.store?.cashback||0);DEAL.b1_existing_cashback=DEAL.cashback_override;addMsg('bot',`Existing user cashback: <span class="hi">${DEAL.cashback_override}%</span>.`);}
+function parseUptoConfirm(text){
+  const m=text.match(/(\d+\.?\d*)/);
+  DEAL.cashback_override=m?parseFloat(m[1]):(DEAL.store?.cashback||0);
+  addMsg('bot',`Got it — using <span class="hi">${DEAL.cashback_override}%</span> cashback for this deal.`);
+}
 
+async function parseB1Rate(text){
+  const m=text.match(/(\d+\.?\d*)/);
+  const existingCb=m?parseFloat(m[1]):(DEAL.store?.cashback||0);
+  DEAL.b1_existing_cashback=existingCb;
+  DEAL.b1_new_cashback=DEAL.store?.cashback||0;
+  addMsg('bot',`Got it.\n• New user: <span class="hi">${DEAL.b1_new_cashback}%</span>\n• Existing user: <span class="hi">${existingCb}%</span>\n\nDeal will show both options on the deal page. Creating with new user rate as default.`);
+  // Always use new user rate as the deal's default cashback_override
+  DEAL.cashback_override=DEAL.b1_new_cashback;
+  DEAL.is_b1=true;
+  await stepCat();
+}
 // ── GPT category ──────────────────────────────────────────────────
 async function stepCat(){
   showTyping();
