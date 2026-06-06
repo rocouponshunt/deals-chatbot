@@ -24,7 +24,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 #chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
 #chat::-webkit-scrollbar{width:4px}
 #chat::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-.msg{display:flex;flex-direction:column;max-width:78%;animation:msgIn .2s ease}
+.msg{display:flex;flex-direction:column;max-width:80%;animation:msgIn .2s ease}
 @keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .msg.bot{align-self:flex-start}.msg.user{align-self:flex-end}
 .msg-label{font-size:10px;color:var(--text3);margin-bottom:4px;letter-spacing:.5px;text-transform:uppercase}
@@ -33,15 +33,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .msg.bot .bubble{background:var(--bg3);border:1px solid var(--border);border-bottom-left-radius:4px}
 .msg.user .bubble{background:var(--accent);border-bottom-right-radius:4px;color:#fff}
 .bubble .hi{color:var(--accent);font-weight:500}.bubble .gr{color:var(--green)}.bubble .rd{color:var(--red)}
+/* KB approval card */
+.kb-card{background:var(--bg4);border:1px solid var(--accent);border-radius:10px;padding:14px;margin-top:6px}
+.kb-card-label{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kb-card-content{font-size:12.5px;color:var(--text2);line-height:1.7;white-space:pre-wrap}
 #typing{display:none;align-self:flex-start;padding:12px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);border-bottom-left-radius:4px}
 #typing span{display:inline-block;width:7px;height:7px;background:var(--text3);border-radius:50%;animation:bounce .9s infinite}
 #typing span:nth-child(2){animation-delay:.15s}#typing span:nth-child(3){animation-delay:.3s}
 @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
 .product-card{background:var(--bg4);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:6px;display:flex}
-.product-card-img{width:100px;height:100px;object-fit:contain;flex-shrink:0;background:var(--bg3);padding:6px}
-.product-card-img-placeholder{width:100px;height:100px;background:var(--bg3);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:28px;flex-shrink:0}
+.product-card-img{width:90px;height:90px;object-fit:contain;flex-shrink:0;background:var(--bg3);padding:6px}
+.product-card-img-placeholder{width:90px;height:90px;background:var(--bg3);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:28px;flex-shrink:0}
 .product-card-body{padding:12px;flex:1}
-.product-card-name{font-family:var(--font);font-size:13px;font-weight:600;margin-bottom:6px;line-height:1.4}
+.product-card-name{font-family:var(--font);font-size:13px;font-weight:600;margin-bottom:5px;line-height:1.4}
 .product-card-retailer{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .product-card-prices{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .price-mrp{text-decoration:line-through;color:var(--text3);font-size:12px}
@@ -61,8 +65,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .wf-row.saving{color:var(--green);font-size:11px}
 .quick-replies{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;align-self:flex-start;max-width:100%}
 .qr-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:7px 13px;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:12px;transition:all .15s;white-space:nowrap}
-.qr-btn:hover{background:var(--bg4);border-color:var(--accent);color:var(--accent)}
-.qr-btn.accent{border-color:var(--accent);color:var(--accent)}
+.qr-btn:hover,.qr-btn.accent{background:var(--bg4);border-color:var(--accent);color:var(--accent)}
 .store-list{display:flex;flex-direction:column;gap:6px;margin-top:4px;align-self:flex-start;width:100%;max-width:420px}
 .store-search{width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:9px 13px;border-radius:9px;font-family:var(--mono);font-size:13px;outline:none;transition:border .15s;margin-bottom:2px}
 .store-search:focus{border-color:var(--accent)}
@@ -94,7 +97,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
   <div id="chat"><div id="typing"><span></span><span></span><span></span></div></div>
   <div id="input-area">
     <div id="input-wrap">
-      <textarea id="input" rows="1" placeholder="Paste a product URL, or teach me something, or ask me to update a retailer..."></textarea>
+      <textarea id="input" rows="1" placeholder="Paste a product URL, or dump all deal details at once..."></textarea>
       <button id="send-btn">➤</button>
     </div>
   </div>
@@ -113,73 +116,100 @@ const EDGE = {
   UPDATE_STORE_CASHBACK: 'https://bdztgellimsbglxiuwcq.supabase.co/functions/v1/update-store-cashback',
 };
 
-let STORES = [], KB = [], DEAL = {}, flow_step = 'init', input_locked = false;
+let STORES=[], KB=[], DEAL={}, flow_step='init', input_locked=false;
+let PENDING_KB=null; // KB entry waiting for approval
 
 // ── Helpers ───────────────────────────────────────────────────────
-const chatEl = document.getElementById('chat');
-const typingEl = document.getElementById('typing');
-const scrollBottom = () => chatEl.scrollTop = chatEl.scrollHeight;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const fmt = n => Number(n||0).toLocaleString('en-IN');
-function fmtPrice(n) { return Math.round(n); } // round to whole number
-function setStep(s) { flow_step=s; document.getElementById('step-indicator').textContent=s; }
-function lockInput() { input_locked=true; document.getElementById('send-btn').disabled=true; }
-function unlockInput() { input_locked=false; document.getElementById('send-btn').disabled=false; document.getElementById('input').focus(); }
-function showTyping() { typingEl.style.display='flex'; scrollBottom(); }
-function hideTyping() { typingEl.style.display='none'; }
-async function botDelay(ms) { showTyping(); await sleep(ms); hideTyping(); }
-function parseArr(v) { if(!v)return[]; if(Array.isArray(v))return v; try{const p=JSON.parse(v);return Array.isArray(p)?p:[];}catch(e){return[];} }
+const chatEl=document.getElementById('chat');
+const typingEl=document.getElementById('typing');
+const scrollBottom=()=>chatEl.scrollTop=chatEl.scrollHeight;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const fmt=n=>Number(n||0).toLocaleString('en-IN');
+function setStep(s){flow_step=s;document.getElementById('step-indicator').textContent=s;}
+function lockInput(){input_locked=true;document.getElementById('send-btn').disabled=true;}
+function unlockInput(){input_locked=false;document.getElementById('send-btn').disabled=false;document.getElementById('input').focus();}
+function showTyping(){typingEl.style.display='flex';scrollBottom();}
+function hideTyping(){typingEl.style.display='none';}
+async function botDelay(ms){showTyping();await sleep(ms);hideTyping();}
+function parseArr(v){if(!v)return[];if(Array.isArray(v))return v;try{const p=JSON.parse(v);return Array.isArray(p)?p:[];}catch(e){return[];}}
 
-function addMsg(role, content, extra) {
-  const wrap=document.createElement('div'); wrap.className='msg '+role;
-  const label=document.createElement('div'); label.className='msg-label';
+function addMsg(role,content,extra){
+  const wrap=document.createElement('div');wrap.className='msg '+role;
+  const label=document.createElement('div');label.className='msg-label';
   label.textContent=role==='bot'?'DEALSHUB':'YOU';
-  const bubble=document.createElement('div'); bubble.className='bubble';
-  if(typeof content==='string') bubble.innerHTML=content.replace(/\n/g,'<br>');
+  const bubble=document.createElement('div');bubble.className='bubble';
+  if(typeof content==='string')bubble.innerHTML=content.replace(/\n/g,'<br>');
   else bubble.appendChild(content);
-  wrap.appendChild(label); wrap.appendChild(bubble);
-  if(extra) wrap.appendChild(extra);
-  chatEl.insertBefore(wrap,typingEl); scrollBottom(); return wrap;
+  wrap.appendChild(label);wrap.appendChild(bubble);
+  if(extra)wrap.appendChild(extra);
+  chatEl.insertBefore(wrap,typingEl);scrollBottom();return wrap;
 }
 
-function addQuickReplies(options, onPick) {
-  const wrap=document.createElement('div'); wrap.className='quick-replies';
+function addQuickReplies(options,onPick){
+  const wrap=document.createElement('div');wrap.className='quick-replies';
   options.forEach(opt=>{
     const b=document.createElement('button');
     b.className='qr-btn'+(opt.accent?' accent':'');
     b.textContent=opt.label||opt;
-    b.onclick=()=>{ wrap.remove(); addMsg('user',opt.label||opt); onPick(opt.value!==undefined?opt.value:(opt.label||opt)); };
+    b.onclick=()=>{wrap.remove();addMsg('user',opt.label||opt);onPick(opt.value!==undefined?opt.value:(opt.label||opt));};
     wrap.appendChild(b);
   });
-  chatEl.insertBefore(wrap,typingEl); scrollBottom();
+  chatEl.insertBefore(wrap,typingEl);scrollBottom();
 }
 
-function addStoreList(initialStores, onPick) {
-  const wrap=document.createElement('div'); wrap.className='store-list';
-  const si=document.createElement('input'); si.className='store-search'; si.placeholder='Search retailer by name...';
-  const re=document.createElement('div'); re.className='store-results';
-  wrap.appendChild(si); wrap.appendChild(re);
-  function render(list) {
+function addStoreList(initialStores,onPick){
+  const wrap=document.createElement('div');wrap.className='store-list';
+  const si=document.createElement('input');si.className='store-search';si.placeholder='Search retailer by name...';
+  const re=document.createElement('div');re.className='store-results';
+  wrap.appendChild(si);wrap.appendChild(re);
+  function render(list){
     re.innerHTML='';
     list.slice(0,6).forEach(s=>{
-      const item=document.createElement('div'); item.className='store-item';
+      const item=document.createElement('div');item.className='store-item';
       item.innerHTML=`<div><div class="store-item-name">${s.report_storename}</div><div class="store-item-cb">${s.cashback}${s.cashback_type==='percent'?'%':'₹'} ${s.store_type}</div></div><div style="color:var(--text3);font-size:11px">${s.report_store_categoryname||''}</div>`;
-      item.onclick=()=>{ wrap.remove(); addMsg('user',s.report_storename); onPick(s); };
+      item.onclick=()=>{wrap.remove();addMsg('user',s.report_storename);onPick(s);};
       re.appendChild(item);
     });
-    const notIn=document.createElement('div'); notIn.className='store-item'; notIn.style.borderStyle='dashed';
+    const notIn=document.createElement('div');notIn.className='store-item';notIn.style.borderStyle='dashed';
     notIn.innerHTML=`<div style="color:var(--text3)">Retailer not in list — add manually</div><div style="font-size:18px;color:var(--text3)">+</div>`;
-    notIn.onclick=()=>{ wrap.remove(); addMsg('user','Not in list'); onPick(null); };
-    re.appendChild(notIn); scrollBottom();
+    notIn.onclick=()=>{wrap.remove();addMsg('user','Not in list');onPick(null);};
+    re.appendChild(notIn);scrollBottom();
   }
   render(initialStores);
-  si.addEventListener('input',()=>{ const q=si.value.trim().toLowerCase(); render(q?STORES.filter(s=>s.report_storename.toLowerCase().includes(q)||(s.url_key||'').toLowerCase().includes(q)):initialStores); });
+  si.addEventListener('input',()=>{const q=si.value.trim().toLowerCase();render(q?STORES.filter(s=>s.report_storename.toLowerCase().includes(q)||(s.url_key||'').toLowerCase().includes(q)):initialStores);});
   si.addEventListener('keydown',e=>e.stopPropagation());
-  chatEl.insertBefore(wrap,typingEl); setTimeout(()=>si.focus(),100); scrollBottom();
+  chatEl.insertBefore(wrap,typingEl);setTimeout(()=>si.focus(),100);scrollBottom();
 }
 
-function makeProductCard(p, store) {
-  const card=document.createElement('div'); card.className='product-card';
+// ── KB approval card ──────────────────────────────────────────────
+function showKBApproval(category, key, content, onApproved){
+  PENDING_KB={category,key,content,onApproved};
+  const card=document.createElement('div');card.className='kb-card';
+  card.innerHTML=`<div class="kb-card-label">📚 Knowledge Base Update — Review before saving</div><div class="kb-card-content">${content}</div>`;
+  addMsg('bot','I want to save this to my knowledge base. OK to proceed?',card);
+  addQuickReplies([{label:'✅ Yes, save it',accent:true},{label:'✏ Edit it'},{label:'❌ Discard'}],async v=>{
+    if(v==='✅ Yes, save it'){
+      showTyping();
+      try{
+        await apiUpdateKB(PENDING_KB.category,PENDING_KB.key,PENDING_KB.content);
+        KB.push({category:PENDING_KB.category,key:PENDING_KB.key,content:PENDING_KB.content});
+        hideTyping();
+        addMsg('bot',`<span class="gr">✅ Saved to knowledge base.</span>`);
+        if(PENDING_KB.onApproved) PENDING_KB.onApproved();
+      }catch(e){hideTyping();addMsg('bot',`<span class="rd">Failed to save KB.</span> ${e.message}`);}
+      PENDING_KB=null;setStep('done');unlockInput();
+    } else if(v==='✏ Edit it'){
+      addMsg('bot','Type the updated content for this KB entry:');
+      setStep('kb-edit');unlockInput();
+    } else {
+      PENDING_KB=null;addMsg('bot','Discarded. Not saved.');setStep('done');unlockInput();
+    }
+  });
+  setStep('kb-approval');
+}
+
+function makeProductCard(p,store){
+  const card=document.createElement('div');card.className='product-card';
   const disc=p.mrp>p.discounted_price?Math.round((p.mrp-p.discounted_price)/p.mrp*100):0;
   const imgs=parseArr(p.image_urls);
   const imgEl=imgs[0]?`<img class="product-card-img" src="${imgs[0]}" onerror="this.style.display='none'">`:`<div class="product-card-img-placeholder">🛍</div>`;
@@ -195,410 +225,410 @@ function makeProductCard(p, store) {
   return card;
 }
 
-// ── Waterfall with proper rounding ────────────────────────────────
-function calcWaterfall(d, store, overrideCb) {
-  const cb_pct = overrideCb !== undefined ? overrideCb : (store?.cashback || 0);
-  const cd = d.coupon_type==='percent' ? d.discounted_price*(d.coupon_discount/100) : (d.coupon_discount||0);
-  const after_coupon = d.discounted_price - cd;
-  const prepaid = d.prepaid_discount || store?.prepaid_discount || 0;
-  const prepaid_t = d.prepaid_type || store?.prepaid_type || 'flat';
-  const pd = prepaid_t==='percent' ? after_coupon*(prepaid/100) : prepaid;
-  const after_prepaid = after_coupon - pd;
-  const shipping = d.shipping_fee !== undefined ? d.shipping_fee : (store?.shipping_fee||0);
-  const rule = d.shipping_rule !== undefined ? d.shipping_rule : (store?.shipping_rule||'yes');
-  const subtotal = after_prepaid + shipping;
-  const cb_base = rule==='yes' ? subtotal : after_prepaid;
-  const cb_type = store?.cashback_type || 'percent';
-  const cb_amt = cb_type==='percent' ? cb_base*(cb_pct/100) : cb_pct;
-  const price_after_cb = cb_base - cb_amt;
-  const final_raw = rule==='no' ? price_after_cb + shipping : price_after_cb;
-  const final = Math.round(final_raw); // standard rounding: .5 rounds up
-  const disc_pct = d.mrp > 0 ? Math.round((d.mrp-final)/d.mrp*100) : 0;
-  return { cd, after_coupon, pd, after_prepaid, shipping, rule, subtotal, cb_base, cb_amt, final, disc_pct, cb_pct };
+function calcWaterfall(d,store,overrideCb){
+  const cb_pct=overrideCb!==undefined?overrideCb:(store?.cashback||0);
+  const cd=d.coupon_type==='percent'?d.discounted_price*(d.coupon_discount/100):(d.coupon_discount||0);
+  const after_coupon=d.discounted_price-cd;
+  const prepaid=d.prepaid_discount||store?.prepaid_discount||0;
+  const prepaid_t=d.prepaid_type||store?.prepaid_type||'flat';
+  const pd=prepaid_t==='percent'?after_coupon*(prepaid/100):prepaid;
+  const after_prepaid=after_coupon-pd;
+  const shipping=d.shipping_fee!==undefined?d.shipping_fee:(store?.shipping_fee||0);
+  const rule=d.shipping_rule!==undefined?d.shipping_rule:(store?.shipping_rule||'yes');
+  const subtotal=after_prepaid+shipping;
+  const cb_base=rule==='yes'?subtotal:after_prepaid;
+  const cb_type=store?.cashback_type||'percent';
+  const cb_amt=cb_type==='percent'?cb_base*(cb_pct/100):cb_pct;
+  const price_after_cb=cb_base-cb_amt;
+  const final=Math.round(rule==='no'?price_after_cb+shipping:price_after_cb);
+  const disc_pct=d.mrp>0?Math.round((d.mrp-final)/d.mrp*100):0;
+  return{cd,after_coupon,pd,after_prepaid,shipping,rule,subtotal,cb_base,cb_amt,final,disc_pct,cb_pct};
 }
 
-function makeWaterfallEl(d, store, overrideCb) {
-  const w = calcWaterfall(d, store, overrideCb);
-  Object.assign(d, { cashback_amount: Math.round(w.cb_amt*100)/100, final_deal_price: w.final, discount_percent: w.disc_pct, shipping_fee: w.shipping, shipping_rule: w.rule });
-  const cbType = store?.cashback_type==='percent' ? '%' : '₹';
-  const el=document.createElement('div'); el.className='waterfall';
+function makeWaterfallEl(d,store,overrideCb){
+  const w=calcWaterfall(d,store,overrideCb);
+  Object.assign(d,{cashback_amount:Math.round(w.cb_amt*100)/100,final_deal_price:w.final,discount_percent:w.disc_pct,shipping_fee:w.shipping,shipping_rule:w.rule});
+  const cbType=store?.cashback_type==='percent'?'%':'₹';
+  const el=document.createElement('div');el.className='waterfall';
   let html=`<div class="wf-row strike"><span>MRP</span><span class="wf-val">₹${fmt(d.mrp)}</span></div>
     <div class="wf-row"><span>Discounted price</span><span class="wf-val">₹${fmt(d.discounted_price)}</span></div>`;
-  if(w.cd>0) html+=`<div class="wf-row deduct"><span>Coupon (${d.coupon_code})</span><span class="wf-val">−₹${fmt(w.cd)}</span></div>
+  if(w.cd>0)html+=`<div class="wf-row deduct"><span>Coupon (${d.coupon_code})</span><span class="wf-val">−₹${fmt(w.cd)}</span></div>
     <div class="wf-row"><span>After coupon</span><span class="wf-val">₹${fmt(w.after_coupon)}</span></div>`;
-  if(w.pd>0) html+=`<div class="wf-row deduct"><span>Prepaid discount</span><span class="wf-val">−₹${fmt(w.pd)}</span></div>
+  if(w.pd>0)html+=`<div class="wf-row deduct"><span>Prepaid discount</span><span class="wf-val">−₹${fmt(w.pd)}</span></div>
     <div class="wf-row"><span>After prepaid</span><span class="wf-val">₹${fmt(w.after_prepaid)}</span></div>`;
-  if(w.shipping>0) html+=`<div class="wf-row add"><span>+ Shipping</span><span class="wf-val">₹${fmt(w.shipping)}</span></div>`;
+  if(w.shipping>0)html+=`<div class="wf-row add"><span>+ Shipping</span><span class="wf-val">₹${fmt(w.shipping)}</span></div>`;
   html+=`<div class="wf-row deduct"><span>CashKaro ${w.cb_pct}${cbType} cashback</span><span class="wf-val">−₹${fmt(w.cb_amt)}</span></div>
     <hr class="wf-divider">
     <div class="wf-row total"><span>FINAL DEAL PRICE</span><span class="wf-val">₹${fmt(w.final)}</span></div>
     <div class="wf-row saving"><span>🎉 Saving ${w.disc_pct}% vs MRP</span></div>`;
-  el.innerHTML=html; return el;
+  el.innerHTML=html;return el;
+}
+
+// ── Smart one-shot deal parser ────────────────────────────────────
+// Parses a message like: "https://... Myntra CK15 15% 50 prepaid 40 shipping"
+function parseOneShotMsg(text){
+  const out={};
+  // URL
+  const urlM=text.match(/https?:\/\/\S+/);
+  if(urlM) out.url=urlM[0];
+  // Coupon + discount — patterns: "CK15 15%", "CK15 15% off", "coupon CK15 15%"
+  const couponM=text.match(/\b([A-Z][A-Z0-9]{2,14})\s+(\d+\.?\d*)\s*%/);
+  if(couponM){out.coupon_code=couponM[1];out.coupon_discount=parseFloat(couponM[2]);out.coupon_type='percent';}
+  else{
+    const couponFlat=text.match(/\b([A-Z][A-Z0-9]{2,14})\s+(?:₹\s*)?(\d+\.?\d*)\b/);
+    if(couponFlat&&parseFloat(couponFlat[2])>0&&parseFloat(couponFlat[2])<2000){
+      out.coupon_code=couponFlat[1];out.coupon_discount=parseFloat(couponFlat[2]);out.coupon_type='flat';
+    }
+  }
+  // Prepaid
+  const prepaidM=text.match(/(?:prepaid|pre-paid)\s*(?:₹\s*)?(\d+\.?\d*)\s*(%)?/i);
+  if(prepaidM){out.prepaid_discount=parseFloat(prepaidM[1]);out.prepaid_type=prepaidM[2]?'percent':'flat';}
+  // Shipping
+  const shippingM=text.match(/(?:shipping|ship|delivery)\s*(?:₹\s*)?(\d+\.?\d*)/i)||text.match(/(?:₹\s*)?(\d+\.?\d*)\s*(?:shipping|ship|delivery)/i);
+  if(shippingM) out.shipping_fee=parseFloat(shippingM[1]);
+  if(/free\s*(?:shipping|ship|delivery)/i.test(text)||/(?:shipping|ship|delivery)\s*free/i.test(text)) out.shipping_fee=0;
+  // Cashback override (upto deals)
+  const cbM=text.match(/(?:cashback|cb|reward)\s*(?:is\s*)?(\d+\.?\d*)\s*%/i);
+  if(cbM) out.cashback_override=parseFloat(cbM[1]);
+  // Retailer name hint (not URL)
+  const noUrl=text.replace(/https?:\/\/\S+/,'').trim();
+  const retailerHint=noUrl.match(/^([A-Za-z][A-Za-z\s]{1,20})\b/);
+  if(retailerHint&&retailerHint[1].trim().length>2) out.retailer_hint=retailerHint[1].trim();
+  return out;
 }
 
 // ── Retailer matching ─────────────────────────────────────────────
-function matchStore(apiRetailer, productUrl) {
-  const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-  const tokens = s => (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(t=>t.length>2);
+function matchStore(apiRetailer,productUrl,hint){
+  const norm=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const tokens=s=>(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(t=>t.length>2);
   let domainRaw='';
-  try { domainRaw=new URL(productUrl).hostname.replace(/^www\./,'').replace(/\.(com|in|co\.in|net|org|io)$/,''); } catch(e){}
-  const domainNorm=norm(domainRaw), rn=norm(apiRetailer);
-  for(const s of STORES) {
-    const key=norm(s.url_key), name=norm(s.report_storename);
-    if(key===rn||name===rn||key===domainNorm||name===domainNorm) return {store:s,confidence:'high'};
-    if(domainNorm&&(domainNorm.includes(key)||key.includes(domainNorm)||domainNorm.includes(name)||name.includes(domainNorm))) return {store:s,confidence:'high'};
+  try{domainRaw=new URL(productUrl).hostname.replace(/^www\./,'').replace(/\.(com|in|co\.in|net|org|io)$/,'');}catch(e){}
+  const checks=[norm(apiRetailer),norm(domainRaw),norm(hint||'')].filter(Boolean);
+  for(const s of STORES){
+    const key=norm(s.url_key),name=norm(s.report_storename);
+    if(checks.some(c=>c===key||c===name)) return{store:s,confidence:'high'};
+    if(checks.some(c=>domainRaw&&(c.includes(key)||key.includes(c)||c.includes(name)||name.includes(c)))) return{store:s,confidence:'high'};
   }
-  const domainTokens=tokens(domainRaw), rTokens=tokens(apiRetailer);
-  for(const s of STORES) {
-    const nTokens=tokens(s.report_storename), kTokens=tokens(s.url_key);
+  const allTokens=[...tokens(apiRetailer),...tokens(domainRaw),...tokens(hint||'')];
+  for(const s of STORES){
+    const nT=tokens(s.report_storename),kT=tokens(s.url_key);
     const overlap=(a,b)=>a.filter(t=>b.some(bt=>bt.includes(t)||t.includes(bt))).length;
-    if(domainTokens.length&&(overlap(domainTokens,nTokens)>0||overlap(domainTokens,kTokens)>0)) return {store:s,confidence:'medium'};
-    if(rTokens.length&&(overlap(rTokens,nTokens)>0||overlap(rTokens,kTokens)>0)) return {store:s,confidence:'medium'};
+    if(allTokens.length&&(overlap(allTokens,nT)>0||overlap(allTokens,kT)>0)) return{store:s,confidence:'medium'};
   }
   return null;
 }
 
-function scoreStoresForPicker() {
+function scoreStoresForPicker(){
   const norm=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
   const tokens=s=>(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(t=>t.length>2);
   let domainRaw='';
-  try{domainRaw=new URL(DEAL.product_url).hostname.replace(/^www\./,'').replace(/\.(com|in|co\.in|net|org|io)$/,'');}catch(e){}
-  const domainNorm=norm(domainRaw), domainTokens=tokens(domainRaw), rTokens=tokens(DEAL.api_retailer);
-  return [...STORES].map(s=>{
+  try{domainRaw=new URL(DEAL.product_url||'').hostname.replace(/^www\./,'').replace(/\.(com|in|co\.in|net|org|io)$/,'');}catch(e){}
+  const domainNorm=norm(domainRaw),domainTokens=tokens(domainRaw),rTokens=tokens(DEAL.api_retailer||'');
+  return[...STORES].map(s=>{
     const key=norm(s.url_key),name=norm(s.report_storename),nT=tokens(s.report_storename),kT=tokens(s.url_key);
     let score=0;
     if(key===domainNorm||name===domainNorm)score+=10;
     if(domainNorm&&(domainNorm.includes(key)||key.includes(domainNorm)))score+=6;
     if(domainNorm&&(domainNorm.includes(name)||name.includes(domainNorm)))score+=6;
     domainTokens.forEach(t=>{if(nT.some(nt=>nt.includes(t)||t.includes(nt)))score+=3;});
-    domainTokens.forEach(t=>{if(kT.some(kt=>kt.includes(t)||t.includes(kt)))score+=3;});
     rTokens.forEach(t=>{if(nT.some(nt=>nt.includes(t)||t.includes(nt)))score+=2;});
     return{s,score};
   }).sort((a,b)=>b.score-a.score).map(x=>x.s);
 }
 
-// ── GPT call ──────────────────────────────────────────────────────
-async function callGPT(systemPrompt, userMessage) {
-  const res = await fetch(EDGE.SAVE_DEAL, { // we reuse save-deal's GPT access via a dedicated helper — see below
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ __gpt_only: true, system: systemPrompt, user: userMessage })
-  });
-  // If save-deal doesn't support __gpt_only, fall back gracefully
-  if(!res.ok) return null;
-  const data=await res.json();
-  return data.gpt_response || null;
+// ── GPT category detection ────────────────────────────────────────
+async function detectCategory(productName,retailerCat){
+  const kbCats=KB.filter(k=>k.category==='category_mapping').map(k=>k.content).join('\n');
+  try{
+    const res=await fetch(EDGE.SAVE_DEAL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({__gpt_classify:true,product_name:productName,retailer_category:retailerCat||'',kb_rules:kbCats})});
+    if(res.ok){const d=await res.json();if(d.category)return d.category;}
+  }catch(e){}
+  // Fallback: local keyword match
+  const low=(productName||'').toLowerCase();
+  if(/earbuds|headphone|speaker|laptop|phone|mobile|tablet|tv|monitor|camera|charger|keyboard|mouse|smartwatch|powerbank|router|printer/i.test(low))return'Electronics';
+  if(/serum|moisturiser|sunscreen|lipstick|foundation|mascara|kajal|toner|facewash|shampoo|conditioner|hair oil|lotion|cream|gel|scrub|cleanser/i.test(low))return'Beauty';
+  if(/shirt|t-shirt|jeans|dress|kurta|saree|shoes|sneakers|sandals|bag|wallet|jacket|hoodie/i.test(low))return'Fashion';
+  if(/detergent|soap|cleaner|utensil|cookware|bedsheet|pillow|mattress|vacuum|mop|organiser/i.test(low))return'Home and Kitchen';
+  if(/protein|supplement|vitamin|medicine|tablet|capsule|syrup|health/i.test(low))return'Healthcare and Wellness';
+  return retailerCat||'Miscellaneous';
 }
 
-// ── GPT-powered category detection ───────────────────────────────
-async function detectCategory(productName, retailerCategory) {
-  const kbCats = KB.filter(k=>k.category==='category_mapping').map(k=>k.content).join('\n');
-  const systemPrompt = `You are a product categorisation assistant for CashKaro, an Indian cashback platform.
-Given a product name, return ONLY the single most appropriate category from this list: Electronics, Fashion, Beauty, Home and Kitchen, Healthcare and Wellness, Food and Grocery, Services, Departmental, Miscellaneous.
-Use these keyword rules:\n${kbCats}
-Respond with ONLY the category name, nothing else.`;
-  const userMessage = `Product name: "${productName}". Retailer default category: "${retailerCategory||''}".`;
-  try {
-    const result = await callGPT(systemPrompt, userMessage);
-    if(result && result.trim()) return result.trim();
-  } catch(e) {}
-  return retailerCategory || 'Miscellaneous';
-}
-
-// ── Intent detection — teach / update cashback / deal ─────────────
-async function detectIntent(text) {
-  const low = text.toLowerCase();
-  // Teach / KB update
-  if(low.includes('remember') || low.includes('note that') || low.includes('always') || low.includes('never') || low.includes('from now on') || low.includes('train')) return 'teach';
-  // Update store cashback
-  if((low.includes('cashback') || low.includes('reward')) && (low.includes('change') || low.includes('update') || low.includes('set') || low.includes('is now') || low.includes('has become'))) return 'update_cashback';
-  // URL → deal creation
-  if(text.startsWith('http')) return 'new_deal';
-  return 'unknown';
-}
-
-// ── Edge API calls ────────────────────────────────────────────────
-async function apiLoadStores() {
-  const res=await fetch(EDGE.GET_STORES); if(!res.ok) throw new Error('HTTP '+res.status);
-  const data=await res.json(); STORES=Array.isArray(data)?data:[];
-}
-async function apiLoadKB() {
-  try { const res=await fetch(EDGE.GET_KB); if(!res.ok)return; const data=await res.json(); KB=data.entries||[]; } catch(e){}
-}
-async function apiUpdateKB(category, key, content) {
-  const res=await fetch(EDGE.UPDATE_KB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'upsert',category,key,content})});
-  return res.json();
-}
-async function apiUpdateStoreCashback(report_storename, cashback, cashback_type) {
+// ── Edge calls ────────────────────────────────────────────────────
+async function apiLoadStores(){const res=await fetch(EDGE.GET_STORES);if(!res.ok)throw new Error('HTTP '+res.status);const d=await res.json();STORES=Array.isArray(d)?d:[];}
+async function apiLoadKB(){try{const res=await fetch(EDGE.GET_KB);if(!res.ok)return;const d=await res.json();KB=d.entries||[];}catch(e){}}
+async function apiUpdateKB(category,key,content){const res=await fetch(EDGE.UPDATE_KB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'upsert',category,key,content})});return res.json();}
+async function apiUpdateStoreCashback(report_storename,cashback,cashback_type){
   const res=await fetch(EDGE.UPDATE_STORE_CASHBACK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_storename,cashback,cashback_type})});
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  return res.json();
+  if(!res.ok)throw new Error('HTTP '+res.status);return res.json();
 }
-async function apiFetchProduct(url) {
+async function apiFetchProduct(url){
   const res=await fetch(EDGE.FETCH_PRODUCT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_url:url})});
-  if(!res.ok) throw new Error('HTTP '+res.status); return res.json();
+  if(!res.ok)throw new Error('HTTP '+res.status);return res.json();
 }
-async function apiSaveDeal() {
+async function apiSaveDeal(){
   const payload={
-    store_id:DEAL.store?.id||null, report_storename:DEAL.store?.report_storename||DEAL.manual_retailer_name||'',
-    product_url:DEAL.product_url, product_name:DEAL.product_name, mrp:DEAL.mrp,
-    discounted_price:DEAL.discounted_price, coupon_code:DEAL.coupon_code||null,
-    coupon_discount:DEAL.coupon_discount||0, coupon_type:DEAL.coupon_type||'flat',
-    prepaid_discount_override:DEAL.prepaid_discount||null, prepaid_type_override:DEAL.prepaid_type||null,
-    shipping_fee_override:DEAL.shipping_fee, shipping_rule_override:DEAL.shipping_rule,
-    cashback_amount:DEAL.cashback_amount, final_deal_price:DEAL.final_deal_price,
-    discount_percent:DEAL.discount_percent, image_urls:DEAL.image_urls||[],
-    description:'', category:DEAL.detected_category||DEAL.store?.report_store_categoryname||'',
-    availability:DEAL.availability!==false, availability_status:DEAL.availability_status||'In Stock',
-    cashback_override:DEAL.cashback_override||null, // for Upto / B1 existing user
-    b1_existing_cashback:DEAL.b1_existing_cashback||null,
+    store_id:DEAL.store?.id||null,
+    report_storename:DEAL.store?.report_storename||DEAL.manual_retailer_name||'',
+    product_url:DEAL.product_url,product_name:DEAL.product_name,
+    mrp:DEAL.mrp,discounted_price:DEAL.discounted_price,
+    coupon_code:DEAL.coupon_code||null,coupon_discount:DEAL.coupon_discount||0,coupon_type:DEAL.coupon_type||'flat',
+    prepaid_discount_override:DEAL.prepaid_discount||null,prepaid_type_override:DEAL.prepaid_type||null,
+    shipping_fee_override:DEAL.shipping_fee,shipping_rule_override:DEAL.shipping_rule,
+    cashback_amount:DEAL.cashback_amount,final_deal_price:DEAL.final_deal_price,discount_percent:DEAL.discount_percent,
+    image_urls:DEAL.image_urls||[],description:'',
+    category:DEAL.detected_category||DEAL.store?.report_store_categoryname||'',
+    availability:DEAL.availability!==false,availability_status:DEAL.availability_status||'In Stock',
+    cashback_override:DEAL.cashback_override||null,b1_existing_cashback:DEAL.b1_existing_cashback||null,
     status:'draft'
   };
   const res=await fetch(EDGE.SAVE_DEAL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  if(!res.ok) throw new Error('HTTP '+res.status); return res.json();
+  if(!res.ok)throw new Error('HTTP '+res.status);return res.json();
 }
 
-// ── FLOW ──────────────────────────────────────────────────────────
-async function initFlow() {
+// ── INIT ──────────────────────────────────────────────────────────
+async function initFlow(){
   DEAL={};
-  if(!STORES.length){ showTyping(); try{await apiLoadStores();}catch(e){} hideTyping(); }
-  if(!KB.length) await apiLoadKB();
-  setStep('waiting-url');
-  await botDelay(400);
-  addMsg('bot','👋 Hey! Ready to create a deal.\n\nPaste a product URL, or say something like <span class="hi">update Flipkart cashback to 5%</span> or <span class="hi">remember that Amazon doesn\'t track on B2B orders</span>.');
+  if(!STORES.length){showTyping();try{await apiLoadStores();}catch(e){}hideTyping();}
+  if(!KB.length)await apiLoadKB();
+  setStep('waiting');
+  await botDelay(500);
+  addMsg('bot',`👋 Hey! Let's create some deals.\n\nPaste a product URL — or dump everything at once like:\n<span class="hi">https://... CK15 15% prepaid 50 shipping 40</span>\n\nI'll pick up whatever I can and ask for the rest.`);
   unlockInput();
 }
 
-async function handleUserInput(text) {
-  if(input_locked) return;
-  text=text.trim(); if(!text) return;
+// ── Main router ───────────────────────────────────────────────────
+async function handleUserInput(text){
+  if(input_locked)return;
+  text=text.trim();if(!text)return;
   lockInput();
 
-  // ── Route by step first, then by intent ──
-  if(flow_step==='waiting-url') {
-    const intent = await detectIntent(text);
-    if(intent==='new_deal') await step1_fetchProduct(text);
-    else if(intent==='update_cashback') await handleUpdateCashback(text);
-    else if(intent==='teach') await handleTeach(text);
-    else { addMsg('bot','Paste a product URL to create a deal, or tell me something to remember.'); unlockInput(); }
+  // KB edit mode
+  if(flow_step==='kb-edit'){
+    if(PENDING_KB){PENDING_KB.content=text;showKBApproval(PENDING_KB.category,PENDING_KB.key,text,PENDING_KB.onApproved);}
+    else{unlockInput();}return;
   }
-  else if(flow_step==='manual-retailer-name'){ DEAL.manual_retailer_name=text; await botDelay(300); addMsg('bot','Cashback amount? (e.g. <span class="hi">10%</span> or <span class="hi">₹50</span>)'); setStep('manual-cb'); unlockInput(); }
-  else if(flow_step==='manual-cb'){ parseManualCb(text); await botDelay(300); addMsg('bot','Cashback store or Rewards store?'); addQuickReplies(['Cashback','Rewards'],async v=>{ DEAL.store={report_storename:DEAL.manual_retailer_name,cashback:DEAL.manual_cb,cashback_type:DEAL.manual_cb_type,store_type:v,prepaid_discount:0,prepaid_type:'flat',shipping_fee:0,shipping_rule:'yes',groupid:'A'}; await stepCat(); }); setStep('manual-type'); }
-  else if(flow_step==='upto-confirm'){ parseUptoConfirm(text); await stepCat(); }
-  else if(flow_step==='b1-existing-rate'){ parseB1ExistingRate(text); await stepCat(); }
-  else if(flow_step==='coupon-code'){ DEAL.coupon_code=text.toUpperCase(); await botDelay(300); addMsg('bot',`Discount from <span class="hi">${DEAL.coupon_code}</span>? (e.g. <span class="hi">200</span> for ₹200 or <span class="hi">10%</span>)`); setStep('coupon-amount'); unlockInput(); }
-  else if(flow_step==='coupon-amount'){ parseCouponAmt(text); await step4_prepaid(); }
-  else if(flow_step==='prepaid'){ await step4b_gotPrepaid(text); }
-  else if(flow_step==='shipping'){ await step5b_gotShipping(text); }
-  else if(flow_step==='edit-field'){ await handleEdit(text); }
-  else if(flow_step==='done'){
-    const intent=await detectIntent(text);
-    if(intent==='teach') await handleTeach(text);
-    else if(intent==='update_cashback') await handleUpdateCashback(text);
-    else { addMsg('bot','Click <span class="hi">+ New Deal</span> to start over.'); unlockInput(); }
-  }
-  else { unlockInput(); }
-}
 
-// ── Handle teach (KB update) ──────────────────────────────────────
-async function handleTeach(text) {
-  await botDelay(500);
-  const key = 'user_note_' + Date.now();
-  const category = 'retailer_notes';
-  try {
-    await apiUpdateKB(category, key, text);
-    KB.push({ category, key, content: text, updated_at: new Date().toISOString() });
-    addMsg('bot', `<span class="gr">✅ Got it! I've saved that to my knowledge base.</span>\n\n"${text}"\n\nI'll apply this going forward.`);
-  } catch(e) {
-    addMsg('bot', `<span class="rd">Couldn't save to KB.</span> ${e.message}`);
+  // KB approval mode — intercept yes/no handled by quick replies, anything else treat as new input
+  if(flow_step==='kb-approval'){unlockInput();return;}
+
+  // Active deal flow steps
+  if(flow_step==='retailer-manual-name'){DEAL.manual_retailer_name=text;await botDelay(300);addMsg('bot','Cashback? (e.g. <span class="hi">10%</span> or <span class="hi">₹50</span>)');setStep('retailer-manual-cb');unlockInput();return;}
+  if(flow_step==='retailer-manual-cb'){parseManualCb(text);await botDelay(300);addMsg('bot','Cashback or Rewards store?');addQuickReplies(['Cashback','Rewards'],async v=>{DEAL.store={report_storename:DEAL.manual_retailer_name,cashback:DEAL.manual_cb,cashback_type:DEAL.manual_cb_type,store_type:v,prepaid_discount:0,prepaid_type:'flat',shipping_fee:0,shipping_rule:'yes',groupid:'A'};await stepCat();});setStep('retailer-manual-type');return;}
+  if(flow_step==='upto-confirm'){parseUptoConfirm(text);await stepCat();return;}
+  if(flow_step==='b1-existing-rate'){parseB1Rate(text);await stepCat();return;}
+  if(flow_step==='coupon-code'){DEAL.coupon_code=text.toUpperCase();await botDelay(300);addMsg('bot',`Discount from <span class="hi">${DEAL.coupon_code}</span>? (e.g. <span class="hi">15%</span> or <span class="hi">200</span>)`);setStep('coupon-amount');unlockInput();return;}
+  if(flow_step==='coupon-amount'){parseCouponAmt(text);await step4_prepaid();return;}
+  if(flow_step==='prepaid-input'){await step4b_gotPrepaid(text);return;}
+  if(flow_step==='shipping-input'){await step5b_gotShipping(text);return;}
+  if(flow_step==='edit-field'){await handleEdit(text);return;}
+
+  // ── Top-level intent detection ──
+  const hasUrl=/https?:\/\/\S+/.test(text);
+  const low=text.toLowerCase();
+
+  // Update cashback intent
+  if(!hasUrl&&(low.includes('cashback')||low.includes('reward'))&&(low.includes('change')||low.includes('update')||low.includes('set')||low.includes('is now'))){
+    await handleUpdateCashback(text);return;
   }
-  setStep('done'); unlockInput();
+
+  // Teach/remember intent — queue for approval, don't auto-save
+  if(!hasUrl&&(low.startsWith('remember')||low.startsWith('note')||low.includes('from now on')||low.includes('always ')||low.includes('never ')||low.startsWith('train'))){
+    const key='user_note_'+Date.now();
+    showKBApproval('retailer_notes',key,text,()=>{});
+    return;
+  }
+
+  // URL present → one-shot parse or pure URL
+  if(hasUrl){
+    const parsed=parseOneShotMsg(text);
+    // Pre-fill DEAL with anything parsed from the message
+    if(parsed.coupon_code){DEAL.prefilled_coupon_code=parsed.coupon_code;DEAL.prefilled_coupon_discount=parsed.coupon_discount;DEAL.prefilled_coupon_type=parsed.coupon_type;}
+    if(parsed.prepaid_discount!==undefined){DEAL.prefilled_prepaid=parsed.prepaid_discount;DEAL.prefilled_prepaid_type=parsed.prepaid_type||'flat';}
+    if(parsed.shipping_fee!==undefined)DEAL.prefilled_shipping=parsed.shipping_fee;
+    if(parsed.cashback_override)DEAL.cashback_override=parsed.cashback_override;
+    if(parsed.retailer_hint)DEAL.retailer_hint=parsed.retailer_hint;
+    await step1_fetchProduct(parsed.url||text.match(/https?:\/\/\S+/)[0]);
+    return;
+  }
+
+  // Anything else — friendly reply and circle back
+  await botDelay(600);
+  const offTopicReplies=[
+    `Happy to chat! But my main job is creating deals. Paste a product URL whenever you're ready. 🛍`,
+    `Interesting! My specialty is deals though — drop a product URL and I'll get to work.`,
+    `Good question! I'm most useful when creating deals. Got a product link to work on?`
+  ];
+  addMsg('bot',offTopicReplies[Math.floor(Math.random()*offTopicReplies.length)]);
+  setStep('waiting');unlockInput();
 }
 
 // ── Handle update cashback ────────────────────────────────────────
-async function handleUpdateCashback(text) {
-  // Parse: "update Flipkart cashback to 5%" or "Myntra cashback is now 8%"
-  const pctMatch = text.match(/(\d+\.?\d*)\s*%/);
-  const flatMatch = text.match(/₹\s*(\d+\.?\d*)/);
-  const cashback = pctMatch ? parseFloat(pctMatch[1]) : (flatMatch ? parseFloat(flatMatch[1]) : null);
-  const cashback_type = pctMatch ? 'percent' : (flatMatch ? 'pound' : null);
-
-  // Find retailer name by matching against STORES
-  let matched = null;
-  for(const s of STORES) {
-    if(text.toLowerCase().includes(s.report_storename.toLowerCase())) { matched=s; break; }
-  }
-
-  if(!matched || cashback===null) {
-    addMsg('bot','I couldn\'t parse that. Try: <span class="hi">Update Flipkart cashback to 5%</span> or <span class="hi">Set Amazon rewards to ₹50</span>'); unlockInput(); return;
-  }
-
+async function handleUpdateCashback(text){
+  const pctM=text.match(/(\d+\.?\d*)\s*%/);
+  const flatM=text.match(/₹\s*(\d+\.?\d*)/);
+  const cashback=pctM?parseFloat(pctM[1]):(flatM?parseFloat(flatM[1]):null);
+  const cashback_type=pctM?'percent':(flatM?'pound':null);
+  let matched=null;
+  for(const s of STORES){if(text.toLowerCase().includes(s.report_storename.toLowerCase())){matched=s;break;}}
+  if(!matched||cashback===null){addMsg('bot','Try: <span class="hi">Update Flipkart cashback to 5%</span>');unlockInput();return;}
   await botDelay(400);
-  addMsg('bot',`Update <span class="hi">${matched.report_storename}</span> cashback to <span class="hi">${cashback}${cashback_type==='percent'?'%':'₹'}</span>? This will update the stores table.`);
-  addQuickReplies([{label:'Yes, update it',accent:true},{label:'Cancel'}], async v => {
-    if(v==='Cancel'){ addMsg('bot','Cancelled.'); setStep('done'); unlockInput(); return; }
+  addMsg('bot',`Update <span class="hi">${matched.report_storename}</span> cashback to <span class="hi">${cashback}${cashback_type==='percent'?'%':'₹'}</span>?`);
+  addQuickReplies([{label:'Yes, update',accent:true},{label:'Cancel'}],async v=>{
+    if(v==='Cancel'){addMsg('bot','Cancelled.');setStep('done');unlockInput();return;}
     showTyping();
-    try {
-      await apiUpdateStoreCashback(matched.report_storename, cashback, cashback_type);
-      // Update local STORES too
-      const si = STORES.findIndex(s=>s.report_storename===matched.report_storename);
-      if(si>-1){ STORES[si].cashback=cashback; STORES[si].cashback_type=cashback_type; }
+    try{
+      await apiUpdateStoreCashback(matched.report_storename,cashback,cashback_type);
+      const si=STORES.findIndex(s=>s.report_storename===matched.report_storename);
+      if(si>-1){STORES[si].cashback=cashback;STORES[si].cashback_type=cashback_type;}
       hideTyping();
-      addMsg('bot',`<span class="gr">✅ Done!</span> ${matched.report_storename} cashback updated to ${cashback}${cashback_type==='percent'?'%':'₹'}.`);
-      // Also save to KB as a note
-      await apiUpdateKB('retailer_notes',`${matched.report_storename.toLowerCase().replace(/ /g,'_')}_cashback_update`,`${matched.report_storename} cashback updated to ${cashback}${cashback_type==='percent'?'%':'₹'} on ${new Date().toLocaleDateString()}.`);
-    } catch(e) { hideTyping(); addMsg('bot',`<span class="rd">Failed to update.</span> ${e.message}`); }
-    setStep('done'); unlockInput();
+      addMsg('bot',`<span class="gr">✅ Done!</span> ${matched.report_storename} → ${cashback}${cashback_type==='percent'?'%':'₹'} cashback.`);
+      // Queue KB note for approval
+      const kbContent=`${matched.report_storename} cashback updated to ${cashback}${cashback_type==='percent'?'%':'₹'} on ${new Date().toLocaleDateString()}.`;
+      showKBApproval('retailer_notes',matched.report_storename.toLowerCase().replace(/ /g,'_')+'_cb',kbContent,()=>{});
+    }catch(e){hideTyping();addMsg('bot',`<span class="rd">Failed.</span> ${e.message}`);}
+    setStep('done');unlockInput();
   });
-  setStep('waiting-confirm');
+  setStep('waiting');
 }
 
 // ── Step 1: Fetch product ─────────────────────────────────────────
-async function step1_fetchProduct(url) {
-  if(!url.startsWith('http')){ addMsg('bot','That doesn\'t look like a URL. Paste a full product link starting with http.'); unlockInput(); return; }
+async function step1_fetchProduct(url){
   DEAL.product_url=url;
-  await botDelay(900); addMsg('bot','Fetching product details...'); showTyping();
+  await botDelay(800);addMsg('bot','Fetching product details...');showTyping();
   let product;
-  try{ product=await apiFetchProduct(url); }
-  catch(e){ hideTyping(); addMsg('bot','<span class="rd">Couldn\'t fetch that product.</span> Check the URL and try again.'); unlockInput(); return; }
+  try{product=await apiFetchProduct(url);}
+  catch(e){hideTyping();addMsg('bot','<span class="rd">Couldn\'t fetch that product.</span> Check the URL and try again.');unlockInput();return;}
   hideTyping();
-  if(!product.product_name){ addMsg('bot','<span class="rd">Product not found.</span> Try a different URL.'); unlockInput(); return; }
+  if(!product.product_name){addMsg('bot','<span class="rd">Product not found.</span> Try a different URL.');unlockInput();return;}
 
-  DEAL.product_name=product.product_name;
-  DEAL.mrp=product.mrp;
-  DEAL.discounted_price=product.discounted_price;
-  let raw=product.image_urls||[]; if(typeof raw==='string'){try{raw=JSON.parse(raw);}catch(e){raw=[];}} DEAL.image_urls=raw.slice(0,5);
-  DEAL.availability=product.availability!==false;
-  DEAL.availability_status=product.availability_status||'In Stock';
+  DEAL.product_name=product.product_name;DEAL.mrp=product.mrp;DEAL.discounted_price=product.discounted_price;
+  let raw=product.image_urls||[];if(typeof raw==='string'){try{raw=JSON.parse(raw);}catch(e){raw=[];}}DEAL.image_urls=raw.slice(0,5);
+  DEAL.availability=product.availability!==false;DEAL.availability_status=product.availability_status||'In Stock';
   DEAL.api_retailer=product.retailer||'';
 
-  const match=matchStore(DEAL.api_retailer, url);
-  addMsg('bot', makeProductCard(product, match?.store));
+  const match=matchStore(DEAL.api_retailer,url,DEAL.retailer_hint);
+  addMsg('bot',makeProductCard(product,match?.store));
   await botDelay(500);
 
   if(match&&match.confidence==='high'){
     DEAL.store=match.store;
     addMsg('bot',`Matched to <span class="hi">${match.store.report_storename}</span> — ${match.store.cashback}${match.store.cashback_type==='percent'?'%':'₹'} ${match.store.store_type}. Correct?`);
-    addQuickReplies([{label:'Yes, correct',accent:true},{label:'No, pick another'}], async v=>{
-      if(v==='Yes, correct') await stepCashbackCheck();
-      else await showStorePicker();
+    addQuickReplies([{label:'Yes, correct',accent:true},{label:'No, pick another'}],async v=>{
+      if(v==='Yes, correct')await stepCashbackCheck();else await showStorePicker();
     });
     setStep('confirm-retailer');
-  } else {
+  }else{
     await showStorePicker();
   }
   unlockInput();
 }
 
-async function showStorePicker() {
+async function showStorePicker(){
   await botDelay(400);
   addMsg('bot','Which retailer is this? Search by name:');
-  addStoreList(scoreStoresForPicker().slice(0,5), async store=>{
-    if(store){ DEAL.store=store; await stepCashbackCheck(); }
-    else{ await botDelay(300); addMsg('bot','What\'s the retailer name?'); setStep('manual-retailer-name'); unlockInput(); }
+  addStoreList(scoreStoresForPicker().slice(0,5),async store=>{
+    if(store){DEAL.store=store;await stepCashbackCheck();}
+    else{await botDelay(300);addMsg('bot','What\'s the retailer name?');setStep('retailer-manual-name');unlockInput();}
   });
 }
 
-function parseManualCb(text){ DEAL.manual_cb_type=text.includes('%')?'percent':'pound'; DEAL.manual_cb=parseFloat(text.replace(/[%₹,]/g,'')); }
+function parseManualCb(text){DEAL.manual_cb_type=text.includes('%')?'percent':'pound';DEAL.manual_cb=parseFloat(text.replace(/[%₹,]/g,''));}
 
-// ── Step: Cashback check (Upto / B1 / B2 / flat) ─────────────────
-async function stepCashbackCheck() {
-  const store = DEAL.store;
-  const groupid = store?.groupid || 'A';
+// ── Cashback type check ───────────────────────────────────────────
+async function stepCashbackCheck(){
+  const store=DEAL.store,groupid=store?.groupid||'A';
   await botDelay(400);
-
-  if(groupid==='B1') {
-    // Two rates: new user (in store.cashback) + existing user (in retailer_rates)
-    const existingRate = store.rates?.find(r=>(r.rate_label||'').toLowerCase().includes('exist'));
-    const existingCb = existingRate?.cashback || null;
-    DEAL.b1_new_cashback = store.cashback;
-    DEAL.b1_existing_cashback = existingCb;
-    addMsg('bot',`<span class="hi">${store.report_storename}</span> has different cashback for new vs existing users.\n\n• New user: <span class="hi">${store.cashback}${store.cashback_type==='percent'?'%':'₹'}</span>\n• Existing user: <span class="hi">${existingCb!==null?existingCb+'%':'not set — I\'ll ask you'}</span>\n\nIs the customer a new or existing user of ${store.report_storename}?`);
-    addQuickReplies([{label:`New user (${store.cashback}%)`,accent:true},{label:`Existing user${existingCb!==null?' ('+existingCb+'%)':''}`}], async v=>{
-      if(v.startsWith('New')){
-        DEAL.cashback_override = store.cashback;
-        DEAL.is_b1_existing = false;
-        await stepCat();
-      } else {
-        DEAL.is_b1_existing = true;
-        if(existingCb!==null){
-          DEAL.cashback_override = existingCb;
-          DEAL.b1_existing_cashback = existingCb;
-          await stepCat();
-        } else {
-          addMsg('bot',`What's the existing user cashback % for ${store.report_storename}?`);
-          setStep('b1-existing-rate'); unlockInput();
-        }
-      }
+  if(groupid==='B1'){
+    const existingRate=store.rates?.find(r=>(r.rate_label||'').toLowerCase().includes('exist'));
+    const existingCb=existingRate?.cashback||null;
+    DEAL.b1_new_cashback=store.cashback;DEAL.b1_existing_cashback=existingCb;
+    addMsg('bot',`<span class="hi">${store.report_storename}</span> has different rates:\n• New user: <span class="hi">${store.cashback}%</span>\n• Existing user: <span class="hi">${existingCb!==null?existingCb+'%':'not set'}</span>\n\nIs the customer new or existing?`);
+    addQuickReplies([{label:`New user (${store.cashback}%)`,accent:true},{label:`Existing user${existingCb!==null?' ('+existingCb+'%)':''}`}],async v=>{
+      if(v.startsWith('New')){DEAL.cashback_override=store.cashback;DEAL.is_b1_existing=false;await stepCat();}
+      else{DEAL.is_b1_existing=true;if(existingCb!==null){DEAL.cashback_override=existingCb;DEAL.b1_existing_cashback=existingCb;await stepCat();}
+      else{addMsg('bot',`Existing user cashback % for ${store.report_storename}?`);setStep('b1-existing-rate');unlockInput();}}
     });
     setStep('b1-choice');
-  } else if(groupid !== 'A' && groupid !== 'B1') {
-    // Upto cashback — confirm actual rate for this product
-    addMsg('bot',`<span class="hi">${store.report_storename}</span> offers <span class="hi">Upto ${store.cashback}${store.cashback_type==='percent'?'%':'₹'}</span> ${store.store_type}. The actual rate varies by product.\n\nWhat cashback % applies to this specific product?`);
-    setStep('upto-confirm'); unlockInput();
-  } else {
-    // groupid A = flat, no question needed
-    DEAL.cashback_override = undefined;
-    await stepCat();
+  }else if(groupid!=='A'){
+    // Upto cashback — but check if prefilled
+    if(DEAL.cashback_override!==undefined){
+      addMsg('bot',`<span class="hi">${store.report_storename}</span> is Upto ${store.cashback}%. Using <span class="hi">${DEAL.cashback_override}%</span> from your message — correct?`);
+      addQuickReplies([{label:'Yes',accent:true},{label:'Change it'}],async v=>{
+        if(v==='Yes')await stepCat();
+        else{addMsg('bot',`What cashback % for this product?`);setStep('upto-confirm');unlockInput();}
+      });
+      setStep('upto-confirm-check');
+    }else{
+      addMsg('bot',`<span class="hi">${store.report_storename}</span> offers Upto <span class="hi">${store.cashback}${store.cashback_type==='percent'?'%':'₹'}</span> — what's the actual % for this product?`);
+      setStep('upto-confirm');unlockInput();
+    }
+  }else{
+    DEAL.cashback_override=undefined;await stepCat();
   }
 }
 
-function parseUptoConfirm(text){
-  const m=text.match(/(\d+\.?\d*)/);
-  DEAL.cashback_override = m ? parseFloat(m[1]) : DEAL.store?.cashback;
-  addMsg('bot',`Cashback set to <span class="hi">${DEAL.cashback_override}%</span> for this deal.`);
-}
-function parseB1ExistingRate(text){
-  const m=text.match(/(\d+\.?\d*)/);
-  DEAL.cashback_override = m ? parseFloat(m[1]) : DEAL.store?.cashback;
-  DEAL.b1_existing_cashback = DEAL.cashback_override;
-  addMsg('bot',`Existing user cashback set to <span class="hi">${DEAL.cashback_override}%</span>.`);
-}
+function parseUptoConfirm(text){const m=text.match(/(\d+\.?\d*)/);DEAL.cashback_override=m?parseFloat(m[1]):(DEAL.store?.cashback||0);addMsg('bot',`Cashback set to <span class="hi">${DEAL.cashback_override}%</span>.`);}
+function parseB1Rate(text){const m=text.match(/(\d+\.?\d*)/);DEAL.cashback_override=m?parseFloat(m[1]):(DEAL.store?.cashback||0);DEAL.b1_existing_cashback=DEAL.cashback_override;addMsg('bot',`Existing user cashback: <span class="hi">${DEAL.cashback_override}%</span>.`);}
 
-// ── Step: GPT category detection ──────────────────────────────────
-async function stepCat() {
+// ── GPT category ──────────────────────────────────────────────────
+async function stepCat(){
   showTyping();
-  try {
-    DEAL.detected_category = await detectCategory(DEAL.product_name, DEAL.store?.report_store_categoryname);
-  } catch(e) {
-    DEAL.detected_category = DEAL.store?.report_store_categoryname || 'Miscellaneous';
-  }
+  try{DEAL.detected_category=await detectCategory(DEAL.product_name,DEAL.store?.report_store_categoryname);}
+  catch(e){DEAL.detected_category=DEAL.store?.report_store_categoryname||'Miscellaneous';}
   hideTyping();
-  await step3_coupon();
+  // If coupon was prefilled, skip coupon question
+  if(DEAL.prefilled_coupon_code){
+    DEAL.coupon_code=DEAL.prefilled_coupon_code;DEAL.coupon_discount=DEAL.prefilled_coupon_discount||0;DEAL.coupon_type=DEAL.prefilled_coupon_type||'flat';
+    await step4_prepaid();
+  }else{
+    await step3_coupon();
+  }
 }
 
-// ── Step 3: Coupon ────────────────────────────────────────────────
-async function step3_coupon() {
+// ── Step 3 ────────────────────────────────────────────────────────
+async function step3_coupon(){
   await botDelay(400);
-  addMsg('bot','Does this deal have a <span class="hi">coupon code</span>?');
-  addQuickReplies([{label:'Yes, add coupon',accent:true},{label:'No coupon'}], async v=>{
-    if(v==='Yes, add coupon'){ await botDelay(300); addMsg('bot','Type the coupon code:'); setStep('coupon-code'); unlockInput(); }
-    else{ DEAL.coupon_code=null; DEAL.coupon_discount=0; DEAL.coupon_type='flat'; await step4_prepaid(); }
+  addMsg('bot','Coupon code?');
+  addQuickReplies([{label:'Yes, add coupon',accent:true},{label:'No coupon'}],async v=>{
+    if(v==='Yes, add coupon'){await botDelay(300);addMsg('bot','Type coupon code and discount together — e.g. <span class="hi">CK15 15%</span> or just the code:');setStep('coupon-code');unlockInput();}
+    else{DEAL.coupon_code=null;DEAL.coupon_discount=0;DEAL.coupon_type='flat';await step4_prepaid();}
   });
   setStep('coupon-choice');
 }
 
 function parseCouponAmt(text){
-  DEAL.coupon_type=text.includes('%')?'percent':'flat';
-  DEAL.coupon_discount=parseFloat(text.replace(/[%₹,]/g,''));
+  // Handles "CK15 15%", "15%", "200"
+  const couponFull=text.match(/^([A-Z][A-Z0-9]{2,14})\s+(\d+\.?\d*)\s*(%)?$/i);
+  if(couponFull){DEAL.coupon_code=couponFull[1].toUpperCase();DEAL.coupon_discount=parseFloat(couponFull[2]);DEAL.coupon_type=couponFull[3]?'percent':'flat';}
+  else if(text.includes('%')){const m=text.match(/(\d+\.?\d*)/);if(m)DEAL.coupon_discount=parseFloat(m[1]);DEAL.coupon_type='percent';}
+  else{const m=text.match(/(\d+\.?\d*)/);if(m)DEAL.coupon_discount=parseFloat(m[1]);DEAL.coupon_type='flat';}
   const save=DEAL.coupon_type==='percent'?DEAL.discounted_price*(DEAL.coupon_discount/100):DEAL.coupon_discount;
-  addMsg('bot',`Price after coupon: <span class="gr">₹${fmt(DEAL.discounted_price-save)}</span>`);
+  addMsg('bot',`Coupon applied. Price after coupon: <span class="gr">₹${fmt(DEAL.discounted_price-save)}</span>`);
 }
 
-// ── Step 4: Prepaid ───────────────────────────────────────────────
-async function step4_prepaid() {
-  const store=DEAL.store; await botDelay(400);
+// ── Step 4 ────────────────────────────────────────────────────────
+async function step4_prepaid(){
+  const store=DEAL.store;await botDelay(400);
+  // Use prefilled if available
+  if(DEAL.prefilled_prepaid!==undefined){
+    DEAL.prepaid_discount=DEAL.prefilled_prepaid;DEAL.prepaid_type=DEAL.prefilled_prepaid_type||'flat';
+    const pd=DEAL.prepaid_type==='percent'?DEAL.prepaid_discount+'%':'₹'+DEAL.prepaid_discount;
+    addMsg('bot',`Using prepaid discount: <span class="hi">${pd}</span>`);
+    await step5_shipping();return;
+  }
   if(store?.prepaid_discount>0){
     const pd=store.prepaid_type==='percent'?store.prepaid_discount+'%':'₹'+store.prepaid_discount;
-    addMsg('bot',`${store.report_storename} has a <span class="hi">${pd}</span> prepaid discount. Apply it?`);
-    addQuickReplies([{label:'Yes, apply it',accent:true},{label:'No prepaid'},{label:'Different amount'}], async v=>{
+    addMsg('bot',`${store.report_storename} has <span class="hi">${pd}</span> prepaid discount. Apply?`);
+    addQuickReplies([{label:'Yes, apply it',accent:true},{label:'No prepaid'},{label:'Different amount'}],async v=>{
       if(v==='Yes, apply it'){DEAL.prepaid_discount=store.prepaid_discount;DEAL.prepaid_type=store.prepaid_type;await step5_shipping();}
       else if(v==='No prepaid'){DEAL.prepaid_discount=0;DEAL.prepaid_type='flat';await step5_shipping();}
-      else{addMsg('bot','Enter prepaid discount (e.g. <span class="hi">50</span> or <span class="hi">5%</span>):');setStep('prepaid');unlockInput();}
+      else{addMsg('bot','Enter prepaid (e.g. <span class="hi">50</span> or <span class="hi">5%</span>):');setStep('prepaid-input');unlockInput();}
     });
     setStep('prepaid-choice');
-  } else {
-    addMsg('bot','Any <span class="hi">prepaid discount</span>? (amount, % or <span class="hi">no</span>)');
-    setStep('prepaid'); unlockInput();
+  }else{
+    addMsg('bot','Prepaid discount? (amount, % or <span class="hi">no</span>)');
+    setStep('prepaid-input');unlockInput();
   }
 }
 
@@ -608,95 +638,101 @@ async function step4b_gotPrepaid(text){
   await step5_shipping();
 }
 
-// ── Step 5: Shipping ──────────────────────────────────────────────
-async function step5_shipping() {
-  const store=DEAL.store; await botDelay(400);
+// ── Step 5 ────────────────────────────────────────────────────────
+async function step5_shipping(){
+  const store=DEAL.store;await botDelay(400);
+  // Use prefilled if available
+  if(DEAL.prefilled_shipping!==undefined){
+    DEAL.shipping_fee=DEAL.prefilled_shipping;
+    addMsg('bot',`Using shipping fee: <span class="hi">${DEAL.shipping_fee===0?'Free':'₹'+fmt(DEAL.shipping_fee)}</span>`);
+    if(DEAL.shipping_fee>0)await askShippingRule();else{DEAL.shipping_rule='yes';await step6_summary();}
+    return;
+  }
   if(store?.shipping_fee>0){
-    addMsg('bot',`Shipping for ${store.report_storename} is usually <span class="hi">₹${fmt(store.shipping_fee)}</span>. Use that?`);
-    addQuickReplies([{label:`Yes, ₹${fmt(store.shipping_fee)}`,accent:true},{label:'Different amount'},{label:'Free shipping'}], async v=>{
+    addMsg('bot',`Shipping for ${store.report_storename}: usually <span class="hi">₹${fmt(store.shipping_fee)}</span>. Use that?`);
+    addQuickReplies([{label:`Yes, ₹${fmt(store.shipping_fee)}`,accent:true},{label:'Different amount'},{label:'Free shipping'}],async v=>{
       if(v.startsWith('Yes')){DEAL.shipping_fee=store.shipping_fee;await askShippingRule();}
       else if(v==='Free shipping'){DEAL.shipping_fee=0;DEAL.shipping_rule='yes';await step6_summary();}
-      else{addMsg('bot','Enter shipping fee (₹):');setStep('shipping');unlockInput();}
+      else{addMsg('bot','Shipping fee (₹):');setStep('shipping-input');unlockInput();}
     });
     setStep('shipping-choice');
-  } else {
-    addMsg('bot','Shipping fee? (₹ amount or <span class="hi">free</span>)');
-    setStep('shipping'); unlockInput();
+  }else{
+    addMsg('bot','Shipping fee? (₹ or <span class="hi">free</span>)');
+    setStep('shipping-input');unlockInput();
   }
 }
 async function step5b_gotShipping(text){
   DEAL.shipping_fee=text.toLowerCase()==='free'||text==='0'?0:parseFloat(text.replace(/[₹,]/g,''));
-  if(DEAL.shipping_fee>0)await askShippingRule(); else{DEAL.shipping_rule='yes';await step6_summary();}
+  if(DEAL.shipping_fee>0)await askShippingRule();else{DEAL.shipping_rule='yes';await step6_summary();}
 }
 async function askShippingRule(){
-  const store=DEAL.store, rule=store?.shipping_rule||'yes'; await botDelay(300);
-  addMsg('bot',`Does cashback apply on the shipping fee too? (Default for ${store?.report_storename||'this store'}: <span class="hi">${rule==='yes'?'Yes':'No'}</span>)`);
-  addQuickReplies([{label:'Yes — cashback on shipping',accent:rule==='yes'},{label:'No — product only',accent:rule==='no'}], async v=>{
-    DEAL.shipping_rule=v.startsWith('Yes')?'yes':'no'; await step6_summary();
+  const store=DEAL.store,rule=store?.shipping_rule||'yes';await botDelay(300);
+  addMsg('bot',`Cashback on shipping fee too? (${store?.report_storename||'this store'} default: <span class="hi">${rule==='yes'?'Yes':'No'}</span>)`);
+  addQuickReplies([{label:'Yes — cashback on shipping',accent:rule==='yes'},{label:'No — product only',accent:rule==='no'}],async v=>{
+    DEAL.shipping_rule=v.startsWith('Yes')?'yes':'no';await step6_summary();
   });
   setStep('shipping-rule');
 }
 
 // ── Step 6: Summary ───────────────────────────────────────────────
-async function step6_summary() {
+async function step6_summary(){
   await botDelay(500);
-  const catLabel = DEAL.detected_category ? ` | Category: <span class="hi">${DEAL.detected_category}</span>` : '';
-  const cbOverride = DEAL.cashback_override;
-  addMsg('bot', `Here's your deal breakdown:${catLabel}`, makeWaterfallEl(DEAL, DEAL.store, cbOverride));
+  const cbOverride=DEAL.cashback_override;
+  // Build a summary of what was auto-detected vs entered
+  const autoFilled=[];
+  if(DEAL.prefilled_coupon_code)autoFilled.push(`Coupon <span class="hi">${DEAL.prefilled_coupon_code} ${DEAL.prefilled_coupon_discount}${DEAL.prefilled_coupon_type==='percent'?'%':'₹'}</span>`);
+  if(DEAL.prefilled_prepaid!==undefined)autoFilled.push(`Prepaid <span class="hi">${DEAL.prefilled_prepaid_type==='percent'?DEAL.prefilled_prepaid+'%':'₹'+DEAL.prefilled_prepaid}</span>`);
+  if(DEAL.prefilled_shipping!==undefined)autoFilled.push(`Shipping <span class="hi">${DEAL.prefilled_shipping===0?'free':'₹'+DEAL.prefilled_shipping}</span>`);
+  const autoNote=autoFilled.length?`<br><small style="color:var(--text3)">Auto-detected: ${autoFilled.join(', ')}</small>`:'';
+  addMsg('bot',`Here's your deal — Category: <span class="hi">${DEAL.detected_category}</span>${autoNote}`,makeWaterfallEl(DEAL,DEAL.store,cbOverride));
   await sleep(400);
-  addMsg('bot',`Confirm to save as a <span class="hi">draft</span>. GPT will auto-generate the product description.`);
-  addQuickReplies([{label:'✅ Confirm & Save',accent:true},{label:'✏ Edit something'}], async v=>{
-    if(v==='✅ Confirm & Save') await step7_save();
-    else{addMsg('bot','What to change? (e.g. <span class="hi">coupon is 15%</span>, <span class="hi">shipping is free</span>, <span class="hi">cashback is 8%</span>)');setStep('edit-field');unlockInput();}
+  addMsg('bot',`Good to go? I'll save this as a <span class="hi">draft</span> and GPT will generate the description.`);
+  addQuickReplies([{label:'✅ Confirm & Save',accent:true},{label:'✏ Edit something'}],async v=>{
+    if(v==='✅ Confirm & Save')await step7_save();
+    else{addMsg('bot','What to change? (e.g. <span class="hi">coupon CK20 20%</span>, <span class="hi">shipping 50</span>, <span class="hi">cashback 8%</span>)');setStep('edit-field');unlockInput();}
   });
   setStep('confirm-deal');
 }
 
 async function handleEdit(text){
   const low=text.toLowerCase();
-  if(low.includes('coupon')){
-    if(low.includes('no')||low.includes('none')){DEAL.coupon_code=null;DEAL.coupon_discount=0;DEAL.coupon_type='flat';addMsg('bot','Coupon removed.');}
-    else{const m=text.match(/(\d+\.?\d*)(%)?/);if(m){DEAL.coupon_discount=parseFloat(m[1]);DEAL.coupon_type=m[2]?'percent':'flat';DEAL.coupon_code=DEAL.coupon_code||'CODE';addMsg('bot','Coupon updated.');}}
-  } else if(low.includes('shipping')){
-    DEAL.shipping_fee=low.includes('free')?0:parseFloat((text.match(/\d+\.?\d*/)||[0])[0]);
-    addMsg('bot',`Shipping updated to ${DEAL.shipping_fee===0?'free':'₹'+fmt(DEAL.shipping_fee)}.`);
-  } else if(low.includes('prepaid')){
-    if(low.includes('no'))DEAL.prepaid_discount=0;
-    else{const m=text.match(/(\d+\.?\d*)(%)?/);if(m){DEAL.prepaid_discount=parseFloat(m[1]);DEAL.prepaid_type=m[2]?'percent':'flat';}}
-    addMsg('bot','Prepaid updated.');
-  } else if(low.includes('cashback')||low.includes('reward')){
-    const m=text.match(/(\d+\.?\d*)/);
-    if(m){DEAL.cashback_override=parseFloat(m[1]);addMsg('bot',`Cashback updated to <span class="hi">${DEAL.cashback_override}%</span> for this deal.`);}
-  } else if(low.includes('category')){
-    const cats=['Electronics','Fashion','Beauty','Home and Kitchen','Healthcare and Wellness','Food and Grocery','Miscellaneous'];
-    const found=cats.find(c=>low.includes(c.toLowerCase()));
-    if(found){DEAL.detected_category=found;addMsg('bot',`Category updated to <span class="hi">${found}</span>.`);}
-  } else{addMsg('bot','Couldn\'t parse. Try: <span class="hi">coupon is 10%</span>, <span class="hi">shipping is free</span>, <span class="hi">cashback is 8%</span>');unlockInput();return;}
+  // Smart parse of edit — re-use one-shot parser
+  const parsed=parseOneShotMsg('https://x.com '+text);// prefix URL so parser works
+  if(parsed.coupon_code){DEAL.coupon_code=parsed.coupon_code;DEAL.coupon_discount=parsed.coupon_discount;DEAL.coupon_type=parsed.coupon_type;addMsg('bot','Coupon updated.');}
+  else if(low.includes('coupon')&&(low.includes('no')||low.includes('none'))){DEAL.coupon_code=null;DEAL.coupon_discount=0;DEAL.coupon_type='flat';addMsg('bot','Coupon removed.');}
+  if(parsed.shipping_fee!==undefined){DEAL.shipping_fee=parsed.shipping_fee;addMsg('bot',`Shipping updated to ${DEAL.shipping_fee===0?'free':'₹'+fmt(DEAL.shipping_fee)}.`);}
+  else if(low.includes('ship')&&low.includes('free')){DEAL.shipping_fee=0;addMsg('bot','Shipping set to free.');}
+  if(parsed.prepaid_discount!==undefined){DEAL.prepaid_discount=parsed.prepaid_discount;DEAL.prepaid_type=parsed.prepaid_type||'flat';addMsg('bot','Prepaid updated.');}
+  if(parsed.cashback_override){DEAL.cashback_override=parsed.cashback_override;addMsg('bot',`Cashback updated to <span class="hi">${DEAL.cashback_override}%</span>.`);}
+  const catM=low.match(/categ[a-z]* +([\w\s&]+)/);
+  if(catM){const cats=['Electronics','Fashion','Beauty','Home and Kitchen','Healthcare and Wellness','Food and Grocery','Miscellaneous'];const found=cats.find(c=>low.includes(c.toLowerCase()));if(found){DEAL.detected_category=found;addMsg('bot',`Category → <span class="hi">${found}</span>.`);}}
+  const nameM=text.match(/name[:\s]+(.+)/i);
+  if(nameM){DEAL.product_name=nameM[1].trim();addMsg('bot',`Product name → <span class="hi">${DEAL.product_name}</span>.`);}
   await step6_summary();
 }
 
 // ── Step 7: Save ──────────────────────────────────────────────────
-async function step7_save() {
-  await botDelay(600); addMsg('bot','Saving to DealsHub...'); showTyping();
+async function step7_save(){
+  await botDelay(600);addMsg('bot','Saving to DealsHub...');showTyping();
   try{
-    const result=await apiSaveDeal(); hideTyping();
-    addMsg('bot',`<span class="gr">✅ Deal saved as draft!</span>\n\nRetailer: <span class="hi">${DEAL.store?.report_storename||DEAL.manual_retailer_name}</span>\nCategory: <span class="hi">${DEAL.detected_category}</span>\nFinal price: <span class="hi">₹${fmt(DEAL.final_deal_price)}</span>\n\nGo to <strong>Admin → Deals</strong> to approve and publish.`);
-    await sleep(400);
-    addQuickReplies([{label:'+ Create another deal',accent:true}], async()=>{ Array.from(chatEl.children).forEach(c=>{if(c!==typingEl)c.remove();}); await initFlow(); });
+    const result=await apiSaveDeal();hideTyping();
+    addMsg('bot',`<span class="gr">✅ Deal saved as draft!</span>\n\n📦 ${DEAL.product_name}\n🏪 ${DEAL.store?.report_storename||DEAL.manual_retailer_name}\n📂 ${DEAL.detected_category}\n💰 Final: <span class="hi">₹${fmt(DEAL.final_deal_price)}</span>\n\nGo to <strong>Admin → Deals</strong> to approve and publish.`);
+    await sleep(500);
+    addQuickReplies([{label:'+ Create another deal',accent:true}],async()=>{Array.from(chatEl.children).forEach(c=>{if(c!==typingEl)c.remove();});await initFlow();});
     setStep('done');
   }catch(e){
-    hideTyping(); addMsg('bot',`<span class="rd">Failed to save.</span> ${e.message}`);
-    addQuickReplies([{label:'Retry'}], async()=>await step7_save());
+    hideTyping();addMsg('bot',`<span class="rd">Failed to save.</span> ${e.message}`);
+    addQuickReplies([{label:'Retry'}],async()=>await step7_save());
     setStep('confirm-deal');
   }
   unlockInput();
 }
 
 // ── Input events ──────────────────────────────────────────────────
-document.getElementById('send-btn').onclick = sendMessage;
+document.getElementById('send-btn').onclick=sendMessage;
 document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
 document.getElementById('input').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';});
-document.getElementById('new-deal-btn').onclick=async()=>{ Array.from(chatEl.children).forEach(c=>{if(c!==typingEl)c.remove();}); await initFlow(); };
+document.getElementById('new-deal-btn').onclick=async()=>{Array.from(chatEl.children).forEach(c=>{if(c!==typingEl)c.remove();});await initFlow();};
 function sendMessage(){const inp=document.getElementById('input');const text=inp.value.trim();if(!text||input_locked)return;addMsg('user',text);inp.value='';inp.style.height='auto';handleUserInput(text);}
 
 initFlow();
